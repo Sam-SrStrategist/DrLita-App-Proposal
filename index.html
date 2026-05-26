@@ -425,6 +425,8 @@ body.proposal-locked #resumePopup.show{display:block!important;visibility:visibl
 <input type="hidden" name="_template" value="table">
 <input type="hidden" name="to" value="teamkineticemail@gmail.com">
 <input type="hidden" name="from_name" value="Proposal Gate - PPA">
+<input type="hidden" name="form_type" value="Initial Gate Form">
+<input type="hidden" name="message" value="Dr. Lita accessed the Parent Partnership Academy proposal after accepting the confidentiality note.">
 <div style="margin-bottom:12px"><label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--accent);text-transform:uppercase;display:block;margin-bottom:4px">Your Name</label><input type="text" name="name" required placeholder="Dr. Paulita Gordon" style="width:100%;padding:10px 14px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border-light);color:var(--text);font-size:14px;font-family:'Source Sans 3',sans-serif;box-sizing:border-box"></div>
 <div style="margin-bottom:12px"><label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--accent);text-transform:uppercase;display:block;margin-bottom:4px">Email</label><input type="email" name="email" required placeholder="your@email.com" style="width:100%;padding:10px 14px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border-light);color:var(--text);font-size:14px;font-family:'Source Sans 3',sans-serif;box-sizing:border-box"></div>
 <div style="margin-bottom:12px"><label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--accent);text-transform:uppercase;display:block;margin-bottom:4px">Phone</label><input type="tel" name="phone" required placeholder="(555) 123-4567" style="width:100%;padding:10px 14px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border-light);color:var(--text);font-size:14px;font-family:'Source Sans 3',sans-serif;box-sizing:border-box"></div>
@@ -1413,6 +1415,7 @@ body.proposal-locked #resumePopup.show{display:block!important;visibility:visibl
 <input type="hidden" name="_subject" value="Parent Partnership Academy — Proposal Response from Dr. Lita">
 <input type="hidden" name="from_name" value="Dr. Lita - PPA Proposal">
 <input type="hidden" name="to" value="sam@kineticdigitalpublishers.com">
+<input type="hidden" name="form_type" value="Final Proposal Response Form">
 <div class="form-row"><label>Your Name</label><input type="text" name="name" required placeholder="Dr. Paulita Gordon"></div>
 <div class="form-row"><label>Email</label><input type="email" name="email" required placeholder="your@email.com"></div>
 <div class="form-row"><label>Preferred Timeline</label><select name="timeline"><option value="">Select an option</option><option value="standard">Standard · $30,000 · Up to 180 Days</option><option value="urgent">Urgent · $40,000 · 90 Days</option><option value="call">I'd like to discuss on a call</option></select></div>
@@ -1548,24 +1551,57 @@ function hideAllOverlays(){
   popup.classList.remove('show');
   resumePopup.classList.remove('show');
 }
+function ensureMailIframe(){
+  var iframe=document.getElementById('web3formsHiddenFrame');
+  if(!iframe){
+    iframe=document.createElement('iframe');
+    iframe.name='web3formsHiddenFrame';
+    iframe.id='web3formsHiddenFrame';
+    iframe.style.display='none';
+    iframe.style.width='0';
+    iframe.style.height='0';
+    iframe.style.border='0';
+    document.body.appendChild(iframe);
+  }
+  return iframe;
+}
 function sendFormEmail(form,email){
-  if(!form)return Promise.resolve(false);
-  var fd=new FormData(form);
-  if(!fd.get('access_key'))fd.append('access_key','d8c1d2ec-11cd-404f-9aff-d01ab7db77e2');
-  if(email && !fd.get('to'))fd.append('to',email);
-  if(!fd.get('subject') && fd.get('_subject'))fd.append('subject',fd.get('_subject'));
-  // Primary method restored to Web3Forms, which worked from local files previously.
-  return fetch('https://api.web3forms.com/submit',{method:'POST',body:fd})
-    .then(function(res){return res.ok})
-    .catch(function(){
-      // Backup only: FormSubmit AJAX, in case Web3Forms is temporarily unavailable.
-      try{
-        var formSubmitUrl='https://formsubmit.co/ajax/'+encodeURIComponent(email||'teamkineticemail@gmail.com');
-        return fetch(formSubmitUrl,{method:'POST',body:fd,headers:{'Accept':'application/json'}})
-          .then(function(res){return res.ok})
-          .catch(function(){return false});
-      }catch(e){return false;}
+  return new Promise(function(resolve){
+    if(!form){resolve(false);return;}
+    ensureMailIframe();
+
+    var clone=document.createElement('form');
+    clone.method='POST';
+    clone.action='https://api.web3forms.com/submit';
+    clone.target='web3formsHiddenFrame';
+    clone.style.display='none';
+
+    var fd=new FormData(form);
+    if(!fd.get('access_key'))fd.append('access_key','d8c1d2ec-11cd-404f-9aff-d01ab7db77e2');
+    if(email)fd.set('to',email);
+    if(!fd.get('subject') && fd.get('_subject'))fd.set('subject',fd.get('_subject'));
+    if(!fd.get('from_name'))fd.set('from_name','PPA Proposal Form');
+
+    // Web3Forms works most reliably from local/static HTML when submitted as a real form POST.
+    // This hidden iframe keeps the visitor on the proposal page instead of redirecting away.
+    fd.set('redirect','');
+    fd.set('_captcha','false');
+
+    fd.forEach(function(value,key){
+      var input=document.createElement('input');
+      input.type='hidden';
+      input.name=key;
+      input.value=value;
+      clone.appendChild(input);
     });
+
+    document.body.appendChild(clone);
+    try{clone.submit();}catch(e){resolve(false);return;}
+    setTimeout(function(){
+      try{clone.remove();}catch(e){}
+      resolve(true);
+    },900);
+  });
 }
 function validateGateForm(){
   var gf=document.getElementById('gate-form');
